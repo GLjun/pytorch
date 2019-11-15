@@ -15,29 +15,29 @@ s = torch.cuda.Stream()
 #number of streams
 N=5
 
-M=500 
+M=200 
 N=100
-K=400
+K=300
 repeat=1000
 
 streams = [ torch.cuda.Stream() for _ in range(N) ]
 A = [torch.ones(M, K).cuda() for _ in range(N)]
 B = [torch.ones(K, N).cuda() for _ in range(N)]
 C = [torch.ones(M, N).cuda() for _ in range(N)]
-D = [torch.ones(M, K).cuda() for _ in range(N)]
+D = [torch.ones(M, N).cuda() for _ in range(N)]
 
 def serial_mm():
     for i in range(repeat):
         for j in range(N):
             C[j] = torch.mm(A[j], B[j])
-            D[j] = torch.add(A[j], A[j])
+            D[j] = torch.add(C[j], C[j])
 
 def parallel_mm():
     for i in range(repeat):
         for j in range(N):
             with torch.cuda.stream(streams[j]):
                 C[j] = torch.mm(A[j], B[j])
-                D[j] = torch.add(A[j], A[j])
+                D[j] = torch.add(C[j], C[j])
     
 
 
@@ -53,7 +53,7 @@ se = time.time()
 for i in range(repeat):
     for j in range(N):
         C[j] = torch.mm(A[j], B[j])
-        D[j] = torch.add(A[j], A[j])
+        D[j] = torch.add(C[j], C[j])
 torch.cuda.synchronize()
 ee = time.time()
 print("serial time: ", ee-se)
@@ -63,7 +63,7 @@ for i in range(repeat):
     for j in range(N):
         with torch.cuda.stream(streams[j]):
             C[j] = torch.mm(A[j], B[j])
-            D[j] = torch.add(A[j], A[j])
+            D[j] = torch.add(C[j], C[j])
 torch.cuda.synchronize()
 ee = time.time()
 print("parallel time: ", ee-se)
