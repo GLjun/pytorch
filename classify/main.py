@@ -82,7 +82,7 @@ def main():
         end = time.time()
         for i, (images, labels) in enumerate(train_ld):
             data_time.update(time.time()-end)
-            #images = images.cuda(gpus[0], non_blocking=True)
+            images = images.cuda(gpus[0], non_blocking=True)
             labels = labels.cuda(gpus[0], non_blocking=True)
 
             outputs = model(images)
