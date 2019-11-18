@@ -11,6 +11,7 @@ import torch.nn as nn
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 from resnet import ResNet50
+from alexnet import AlexNet
 from progress import *
 
 def main():
@@ -35,10 +36,10 @@ def main():
         normalize])
 
     train_ds = datasets.ImageFolder(
-            '/home/gw/tmp/imagenet/train',
+            '/home/gw/tmp/imagenet_20/train',
             train_tfs);
     val_ds = datasets.ImageFolder(
-            '/home/gw/tmp/imagenet/val',
+            '/home/gw/tmp/imagenet_20/val',
             val_tfs);
 
     train_ld = torch.utils.data.DataLoader(
@@ -56,7 +57,8 @@ def main():
             pin_memory=True)
 
     print("construct model")
-    model = ResNet50()
+    #model = ResNet50()
+    model = AlexNet()
     model = torch.nn.DataParallel(model, device_ids=gpus).cuda(gpus[0])
 
     criterion = nn.CrossEntropyLoss().cuda(gpus[0])
