@@ -8,7 +8,7 @@
 import torch
 import os
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "7"
+#os.environ["CUDA_VISIBLE_DEVICES"] = "7"
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
