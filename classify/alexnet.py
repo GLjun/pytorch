@@ -15,17 +15,17 @@ class AlexNet(nn.Module):
         self.conv_layers = nn.Sequential(
             nn.Conv2d(3, 96, 11, stride=4, padding=2, bias=False),
             nn.ReLU(inplace=True),
-            nn.MaxPool2d(3, stride=2),
+            nn.MaxPool2d(3, stride=2, padding=0),
             nn.Conv2d(96, 192, 5, stride=1, padding=2, bias=False),
             nn.ReLU(inplace=True),
-            nn.MaxPool2d(3, stride=2),
+            nn.MaxPool2d(3, stride=2, padding=0),
             nn.Conv2d(192, 384, 3, stride=1, padding=1, bias=False),
             nn.ReLU(inplace=True),
             nn.Conv2d(384, 256, 3, stride=1, padding=1, bias=False),
             nn.ReLU(inplace=True),
             nn.Conv2d(256, 256, 3, stride=1, padding=1, bias=False),
             nn.ReLU(inplace=True),
-            nn.MaxPool2d(3, 2))
+            nn.MaxPool2d(3, 2, padding=0))
 
         self.fc_layers = nn.Sequential(
             nn.Dropout(p=0.5),

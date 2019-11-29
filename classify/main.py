@@ -8,15 +8,18 @@ import time
 
 import torch
 import torch.nn as nn
+import torchvision
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 from resnet import ResNet50
 from alexnet import AlexNet
+from vgg import VGG16
 from progress import *
 
 def main():
 
-    gpus=[4,5,6,7]
+    #gpus=[4,5,6,7]
+    gpus=[0]
     print("GPUs :", gpus)
     print("prepare data")
     normalize = transforms.Normalize( 
@@ -58,12 +61,14 @@ def main():
 
     print("construct model")
     #model = ResNet50()
+    #model=torchvision.models.AlexNet()
     model = AlexNet()
-    model = torch.nn.DataParallel(model, device_ids=gpus).cuda(gpus[0])
+    #model = torch.nn.DataParallel(model, device_ids=gpus).cuda(gpus[0])
+    model.cuda()
 
     criterion = nn.CrossEntropyLoss().cuda(gpus[0])
     optimizer = torch.optim.SGD(
-            model.parameters(), 0.256,
+            model.parameters(), 0.01,
             momentum=0.875,
             weight_decay=3.0517578125e-05)
 
