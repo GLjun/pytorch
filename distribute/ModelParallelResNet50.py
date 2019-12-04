@@ -115,7 +115,62 @@ plot(
     'mp_vs_rn.png')
 
 
-#class PipelineParallelResNet50(ModelParallelResNet50):
+class PipelineParallelResNet50(ModelParallelResNet50):
+    def __init__(self, split_size=20, *args, **kwargs):
+        super(PipelineParallelResNet50, self).__init__(*args, **kwargs)
+        self.split_size = split_size
 
+    def forward(self, x):
+        splits = iter(x.split(self.split_size, dim=0))
+        s_next = next(splits)
+        s_prev = self.seq1(s_next).to('cuda:1')
+
+        ret = []
+        for s_next in splits:
+            s_prev = self.seq2(s_prev)
+            ret.append(self.fc(s_prev.view(s_prev.size(0), -1)))
+
+            s_prev = self.seq1(s_next).to('cuda:1')
+        
+        s_prev = self.seq2(s_prev)
+        ret.append(self.fc(s_prev.view(s_prev.size(0), -1)))
+
+        return torch.cat(ret)
+
+
+
+setup = "model = PipelineParallelResNet50()"
+pp_run_times = timeit.repeat(
+    stmt, setup, number=1, repeat=num_repeat, globals=globals())
+pp_mean, pp_std = np.mean(pp_run_times), np.std(pp_run_times)
+
+print("save MP and RN and PP to mp_vs_rn_vs_pp.png")
+plot([mp_mean, rn_mean, pp_mean],
+     [mp_std, rn_std, pp_std],
+     ['Model Parallel', 'Single GPU', 'Pipelining Model Parallel'],
+     'mp_vs_rn_vs_pp.png')
+
+
+means = []
+stds = []
+split_sizes = [1, 3, 5, 8, 10, 12, 20, 40, 60]
+
+for split_size in split_sizes:
+    setup = "model = PipelineParallelResNet50(split_size=%d)" % split_size
+    pp_run_times = timeit.repeat(
+        stmt, setup, number=1, repeat=num_repeat, globals=globals())
+    means.append(np.mean(pp_run_times))
+    stds.append(np.std(pp_run_times))
+
+fig, ax = plt.subplots()
+ax.plot(split_sizes, means)
+ax.errorbar(split_sizes, means, yerr=stds, ecolor='red', fmt='ro')
+ax.set_ylabel('ResNet50 Execution Time (Second)')
+ax.set_xlabel('Pipeline Split Size')
+ax.set_xticks(split_sizes)
+ax.yaxis.grid(True)
+plt.tight_layout()
+plt.savefig("split_size_tradeoff.png")
+plt.close(fig)
 
 
