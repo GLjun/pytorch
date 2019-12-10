@@ -1,0 +1,65 @@
+AVE_NUM  1
+rank 1 partitionsize 30000 batchsize 64
+Rank  1 , epoch  0 :  0.5066294065480039
+Rank  1 , epoch  1 :  0.25166411739168393
+Rank  1 , epoch  2 :  0.19679817102992458
+Rank  1 , epoch  3 :  0.16362397468833526
+Rank  1 , epoch  4 :  0.1410803876277099
+rank 0 partitionsize 30000 batchsize 64
+Rank  0 , epoch  0 :  0.5143316309652857
+Rank  0 , epoch  1 :  0.25723211074879426
+Rank  0 , epoch  2 :  0.20670006474229827
+Rank  0 , epoch  3 :  0.16784028626327066
+Rank  0 , epoch  4 :  0.14342528730154291
+AVE_NUM  2
+rank 1 partitionsize 30000 batchsize 64
+Rank  1 , epoch  0 :  0.5372996939810862
+Rank  1 , epoch  1 :  0.2691711383714859
+Rank  1 , epoch  2 :  0.1994285294766238
+Rank  1 , epoch  3 :  0.15924142474241093
+Rank  1 , epoch  4 :  0.13426203302927872
+rank 0 partitionsize 30000 batchsize 64
+Rank  0 , epoch  0 :  0.5477458068938144
+Rank  0 , epoch  1 :  0.26792942559414074
+Rank  0 , epoch  2 :  0.2079858246769732
+Rank  0 , epoch  3 :  0.16396434868830861
+Rank  0 , epoch  4 :  0.1375332180339136
+AVE_NUM  4
+rank 0 partitionsize 30000 batchsize 64
+Rank  0 , epoch  0 :  0.5493683263754794
+Rank  0 , epoch  1 :  0.27002178707610824
+Rank  0 , epoch  2 :  0.20859024059702594
+Rank  0 , epoch  3 :  0.1645352299660762
+Rank  0 , epoch  4 :  0.13779284132283126
+rank 1 partitionsize 30000 batchsize 64
+Rank  1 , epoch  0 :  0.5377813695367973
+Rank  1 , epoch  1 :  0.2696649284282727
+Rank  1 , epoch  2 :  0.20052466845747505
+Rank  1 , epoch  3 :  0.159088321840331
+Rank  1 , epoch  4 :  0.13536603207082382
+AVE_NUM  8
+rank 1 partitionsize 30000 batchsize 64
+Rank  1 , epoch  0 :  0.5376134782966012
+Rank  1 , epoch  1 :  0.2671224341622548
+Rank  1 , epoch  2 :  0.1977367238846542
+Rank  1 , epoch  3 :  0.15687419939587618
+Rank  1 , epoch  4 :  0.13359178159473292
+rank 0 partitionsize 30000 batchsize 64
+Rank  0 , epoch  0 :  0.5506311158127368
+Rank  0 , epoch  1 :  0.2706775100691232
+Rank  0 , epoch  2 :  0.20832874286753028
+Rank  0 , epoch  3 :  0.1629381785467108
+Rank  0 , epoch  4 :  0.13686295287377798
+AVE_NUM  16
+rank 0 partitionsize 30000 batchsize 64
+Rank  0 , epoch  0 :  0.5496834355757944
+Rank  0 , epoch  1 :  0.2719020190587176
+Rank  0 , epoch  2 :  0.20963820286079257
+Rank  0 , epoch  3 :  0.16677526896124456
+Rank  0 , epoch  4 :  0.1385719164777031
+rank 1 partitionsize 30000 batchsize 64
+Rank  1 , epoch  0 :  0.5397075669788348
+Rank  1 , epoch  1 :  0.2680845036308394
+Rank  1 , epoch  2 :  0.19877508177018877
+Rank  1 , epoch  3 :  0.15828407493068467
+Rank  1 , epoch  4 :  0.13219842925540673
