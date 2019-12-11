@@ -23,7 +23,7 @@ from torch.utils.tensorboard import SummaryWriter
 writer = None #SummaryWriter('runs/')
 
 
-NUM_AVE = 1
+NUM_AVE = 100
 
 parser = argparse.ArgumentParser(description='Pytorch Distribute \
 Trainning')
@@ -177,9 +177,7 @@ if __name__ == "__main__":
     processes = []
     func = run
     args = parser.parse_args()
-    if args.num_ave is not None:
-        NUM_AVE = args.num_ave
-        print("AVE_NUM ", NUM_AVE)
+    print("AVE_NUM ", NUM_AVE)
     for rank in range(size):
         p = Process(target=init_process, args=(rank, size, func, "nccl"))
         p.start()
