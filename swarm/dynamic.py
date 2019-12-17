@@ -202,8 +202,12 @@ def paralllel_run(rank, size, data, global_batch, syn_frequency,
 
     device = torch.device('cuda:{}'.format(rank))
     
-    train_loader, test_loader, batch = partition.paritition_dataset(
+    #train_loader, test_loader, batch = partition.paritition_dataset(
+    #        data, global_batch, SEED)
+
+    train_loaders, test_loader, batch = partition.paritition_all_dataset(
             data, global_batch, SEED)
+    
 
     #model = models.mobilenet_v2(num_classes=10).to(device)
     model = BaiduNet9P().to(device)
@@ -213,7 +217,8 @@ def paralllel_run(rank, size, data, global_batch, syn_frequency,
     #optimizer = optim.Adam(model.parameters(), lr=0.001)
 
     criterion = nn.CrossEntropyLoss()
-    num_batches = math.ceil(len(train_loader.dataset) / float(batch))
+    #num_batches = math.ceil(len(train_loader.dataset) / float(batch))
+    num_batches = math.ceil(len(train_loaders[rank].dataset) / float(batch))
 
     if rank == 0:
         writer = SummaryWriter()
@@ -228,6 +233,7 @@ def paralllel_run(rank, size, data, global_batch, syn_frequency,
         loss_accum_list = [ torch.zeros(1).to(device) for x in range(size)]
 
         model.train()
+        train_loader = train_loaders[(rank+epoch)%size]
         for i, data in enumerate(train_loader, 0):
             inputs, labels = data
             inputs, labels = inputs.to(device), labels.to(device)
