@@ -106,15 +106,15 @@ def run(rank, size):
             loss.backward()
             average_gradients(model)
             optimizer.step()
-            acc1, acc5 = accuracy(output, target, topk=(1,5))
-            print("rank %d acc1 %f acc2 %f", dist.get_rank(), 
-                    acc1, acc5)
+            #acc1, acc5 = accuracy(output, target, topk=(1,5))
+            #print("rank %d acc1 %f acc2 %f", dist.get_rank(), 
+            #        acc1, acc5)
         print('Rank ', dist.get_rank(), ', epoch ', epoch, ': ',
                     epoch_loss/num_batches)
 
 def init_process(rank, size, fn, backend='gloo'):
     os.environ['MASTER_ADDR'] = '127.0.0.1'
-    os.environ['MASTER_PORT'] = '12345'
+    os.environ['MASTER_PORT'] = '12347'
 
     dist.init_process_group(backend, rank=rank, world_size=size)
     dist.barrier()

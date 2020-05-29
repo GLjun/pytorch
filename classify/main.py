@@ -39,10 +39,10 @@ def main():
         normalize])
 
     train_ds = datasets.ImageFolder(
-            '/home/gw/tmp/imagenet_20/train',
+            '/home/gw/data/imagenet_10/train',
             train_tfs);
     val_ds = datasets.ImageFolder(
-            '/home/gw/tmp/imagenet_20/val',
+            '/home/gw/data/imagenet_10/val',
             val_tfs);
 
     train_ld = torch.utils.data.DataLoader(
@@ -89,6 +89,8 @@ def main():
         end = time.time()
         for i, (images, labels) in enumerate(train_ld):
             data_time.update(time.time()-end)
+            print('image shape: ', images.shape)
+            print('labels shape: ', labels.shape)
             images = images.cuda(gpus[0], non_blocking=True)
             labels = labels.cuda(gpus[0], non_blocking=True)
 

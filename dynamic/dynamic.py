@@ -32,6 +32,7 @@ SEED = 1234
 
 BATCH_CNT = 0
 SYN_CNT = 0
+best_acc = 0.0
 
 parser = argparse.ArgumentParser(description='Dynamic')
 
@@ -77,19 +78,50 @@ def synchronize_gradients(model, SYN_FRQ):
         
     BATCH_CNT += 1
 
+def test(model, criterion, epoch, test_loader, device):
+    global best_acc
+    model.eval()
+    test_loss = 0.0
+    correct = 0
+    total = 0
+    loss_acc1 = torch.zeros(2).to(device)
+    with torch.no_grad():
+        for batch_idx, (inputs, targets) in enumerate(test_loader):
+            inputs, targets = inputs.to(device), targets.to(device)
+            outputs = model(inputs)
+            loss = criterion(outputs, targets)
+            test_loss += loss.item()
+
+            _, predicted = outputs.max(1)
+            total += targets.size(0)
+            correct += predicted.eq(targets).sum().item()
+
+        loss_acc1[0] = test_loss / len(test_loader)
+        loss_acc1[1] = 100.0*correct / total
+        print('rank ', dist.get_rank(), ' test loss ', loss_acc1[0].item(), 
+                ' test acc1 ', loss_acc1[1].item())
+        dist.reduce(tensor=loss_acc1,
+                dst=0,
+                op=dist.ReduceOp.SUM)
+        loss_acc1.div_(dist.get_world_size()*1.0)
+        return loss_acc1[0].item(), loss_acc1[1].item()
+
+
+
 def paralllel_run(rank, size, data, global_batch, gpus, syn_frq, backend='gloo'):
     init_process(rank, size, gpus, backend)
     torch.manual_seed(SEED)
 
     device = torch.device('cuda:{}'.format(rank))
     
-    train_loader, batch = partition.paritition_dataset(
+    train_loader, test_loader, batch = partition.paritition_dataset(
             data, global_batch, SEED)
 
     model = models.mobilenet_v2(num_classes=10).to(device)
 
     optimizer = optim.SGD(model.parameters(),
-            lr = 0.01, momentum=0.5)
+            lr = 0.001)
+    #optimizer = optim.Adam(model.parameters(), lr=0.001)
 
     criterion = nn.CrossEntropyLoss()
 
@@ -99,10 +131,19 @@ def paralllel_run(rank, size, data, global_batch, gpus, syn_frq, backend='gloo')
     if rank == 0:
         writer = SummaryWriter()
 
+    c1 = 0.001
+    c2 = 0.001
+    w = 1.0
+    pbest = {}
+    pbest_loss = 100000.0
+
+    rng = Random()
+
     for epoch in range(5):
         epoch_loss = 0.0
         loss_acc1 = torch.zeros(2).to(device)
 
+        model.train()
         for i, data in enumerate(train_loader, 0):
             inputs, labels = data
             inputs, labels = inputs.to(device), labels.to(device)
@@ -114,24 +155,49 @@ def paralllel_run(rank, size, data, global_batch, gpus, syn_frq, backend='gloo')
             loss = criterion(outputs, labels)
             loss.backward()
 
-            synchronize_gradients(model, syn_frq)
+            #synchronize_gradients(model, syn_frq)
+
+            ################################
+            for name, param in model.named_parameters():
+                #grad = param.grad.data
+                dist.all_reduce(param.grad.data, op=dist.ReduceOp.SUM)
+                param.grad.data /= float(size)
+                if len(pbest) > 0:
+                    r1 = rng.random()
+                    r2 = rng.random()
+                    param.grad.data += c1*r1*(pbest[name]-param.data)
+            ################################
 
             optimizer.step()
+            #for param in model.parameters():
+            #    param.data += 0.001 * param.grad.data
 
             epoch_loss += loss.item()
 
             loss_acc1[0].add_(loss.item())
             loss_acc1[1] = progress.accuracy(outputs, labels)[0]
 
-            if (i+1)%100 == 0:
+            ################################
+
+            if loss.item() < pbest_loss:
+                pbest_loss = loss.item()
+                for name, param in model.named_parameters():
+                    #print(name)
+                    pbest[name] = torch.tensor(param.data)
+
+            ###############################
+
+            #if (i+1)%100 == 0:
+            if True:
                 dist.reduce(tensor=loss_acc1,
                         dst=0, op=dist.ReduceOp.SUM)
+                loss_acc1.div_(size*1.0)
                 if rank == 0:
                     writer.add_scalar('loss ', 
-                            loss_acc1[0].item()/100,
+                            loss_acc1[0].item()/1,
                             epoch*len(train_loader) + i)
                     writer.add_scalar('acc1 ',
-                            loss_acc1[1].item()/100,
+                            loss_acc1[1].item()/1,
                             epoch*len(train_loader) + i)
 
                 loss_acc1.zero_()
@@ -139,6 +205,15 @@ def paralllel_run(rank, size, data, global_batch, gpus, syn_frq, backend='gloo')
                 epoch_loss/num_batches, 
                 ' SYN_CNT ', SYN_CNT,
                 ' BATCH_CNT ', BATCH_CNT)
+        test_loss, test_acc1 = test(model, criterion, epoch, test_loader, device)
+        if rank==0:
+            print('after reduce rank ', rank,' test_loss ', test_loss, ' test acc1 ', test_acc1)
+            writer.add_scalar('test loss ', 
+                    test_loss,
+                    epoch)
+            writer.add_scalar('test acc1 ', 
+                    test_acc1,
+                    epoch)
             
     cleanup()
 

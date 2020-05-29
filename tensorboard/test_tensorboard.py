@@ -14,7 +14,7 @@ import torch.optim as optim
 import torchvision
 import torchvision.transforms as transforms
 
-device = torch.device('cuda:0')
+device = torch.device('cuda:7')
 
 transform = transforms.Compose([
     transforms.ToTensor(),
@@ -75,7 +75,7 @@ optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
 
 from torch.utils.tensorboard import SummaryWriter
 
-writer = SummaryWriter('runs/')
+writer = SummaryWriter('runs/test1')
 
 # get some random training images
 dataiter = iter(train_loader)
@@ -85,13 +85,13 @@ images, labels = dataiter.next()
 img_grid = torchvision.utils.make_grid(images)
 
 # show images
-plt_show(img_grid, one_channel=True)
+#plt_show(img_grid, one_channel=True)
 
 # write to tensorboard 
-writer.add_image('fout_fashion_mnist_images', img_grid)
+#writer.add_image('fout_fashion_mnist_images', img_grid)
 
 # inspect the model using TensorBoard
-writer.add_graph(net, images)
+#writer.add_graph(net, images)
 
 #helper function
 def select_n_random(data, labels, n=100):
@@ -110,10 +110,10 @@ print("images shape: ", images.shape, " labels shape: ", labels.shape)
 class_labels = [classes[lab] for lab in labels]
 
 #log embeding
-features = images.view(-1, 28*28)
-writer.add_embedding(features, 
-        metadata=class_labels,
-        label_img=images.unsqueeze(1))
+#features = images.view(-1, 28*28)
+#writer.add_embedding(features, 
+#        metadata=class_labels,
+#        label_img=images.unsqueeze(1))
 
 
 def images_to_probs(net,images):

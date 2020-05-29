@@ -67,7 +67,7 @@ parser.add_argument('--data', type=str,
 
 def init_process(rank, size, gpus,  backend):
     os.environ['MASTER_ADDR'] = '127.0.0.1'
-    os.environ['MASTER_PORT'] = '22346'
+    os.environ['MASTER_PORT'] = '12346'
     if gpus is not None:
         os.environ['CUDA_VISIBLE_DEVICES'] = ",".join(gpus)
 
@@ -156,7 +156,6 @@ def record_pbest(model, loss):
             pbest[name] = torch.tensor(param.data)
 
 def test(model, criterion, epoch, test_loader, device):
-    global best_acc
     model.eval()
     test_loss = 0.0
     correct = 0
@@ -175,8 +174,8 @@ def test(model, criterion, epoch, test_loader, device):
 
         loss_acc1[0] = test_loss / len(test_loader)
         loss_acc1[1] = 100.0*correct / total
-        print('rank ', dist.get_rank(), ' test loss ', loss_acc1[0].item(), 
-                ' test acc1 ', loss_acc1[1].item())
+        #print('rank ', dist.get_rank(), ' test loss ', loss_acc1[0].item(), 
+        #        ' test acc1 ', loss_acc1[1].item())
         dist.reduce(tensor=loss_acc1,
                 dst=0,
                 op=dist.ReduceOp.SUM)
@@ -195,6 +194,9 @@ def paralllel_run(rank, size, data, global_batch, syn_frequency,
     syn_frq = syn_frequency
     syn_begin = syn_begin_batch
 
+    start = 0.0
+    end = 0.0
+
     print("synchronize frequency: ", syn_frq, " syn_begin ", syn_begin)
 
     init_process(rank, size, gpus, backend)
@@ -205,6 +207,10 @@ def paralllel_run(rank, size, data, global_batch, syn_frequency,
     train_loader, test_loader, batch = partition.paritition_dataset(
             data, global_batch, SEED)
 
+    #train_loaders, test_loader, batch = partition.paritition_all_dataset(
+    #        data, global_batch, SEED)
+    
+
     #model = models.mobilenet_v2(num_classes=10).to(device)
     model = BaiduNet9P().to(device)
 
@@ -214,12 +220,16 @@ def paralllel_run(rank, size, data, global_batch, syn_frequency,
 
     criterion = nn.CrossEntropyLoss()
     num_batches = math.ceil(len(train_loader.dataset) / float(batch))
+    #num_batches = math.ceil(len(train_loaders[rank].dataset) / float(batch))
 
     if rank == 0:
         writer = SummaryWriter()
+        start = time.perf_counter()
+
 
     if rng is None:
         rng = Random()
+
 
     for epoch in range(100):
         epoch_loss = 0.0
@@ -228,6 +238,7 @@ def paralllel_run(rank, size, data, global_batch, syn_frequency,
         loss_accum_list = [ torch.zeros(1).to(device) for x in range(size)]
 
         model.train()
+        #train_loader = train_loaders[(rank+epoch)%size]
         for i, data in enumerate(train_loader, 0):
             inputs, labels = data
             inputs, labels = inputs.to(device), labels.to(device)
@@ -257,34 +268,47 @@ def paralllel_run(rank, size, data, global_batch, syn_frequency,
             loss_acc1[0].add_(loss.item())
             loss_acc1[1] = progress.accuracy(outputs, labels)[0]
 
-            record_pbest(model, loss.item())
+            #record_pbest(model, loss.item())
 
-            if (i+1)%record_frq == 0:
-                dist.reduce(tensor=loss_acc1,
-                        dst=0, op=dist.ReduceOp.SUM)
-                loss_acc1.div_(size * 1.0)
-                if rank == 0:
-                    writer.add_scalar('loss ', 
-                            loss_acc1[0].item()/record_frq,
-                            epoch*len(train_loader) + i)
-                    writer.add_scalar('acc1 ',
-                            loss_acc1[1].item()/record_frq,
-                            epoch*len(train_loader) + i)
+            #if (i+1)%record_frq == 0:
+            #    dist.reduce(tensor=loss_acc1,
+            #            dst=0, op=dist.ReduceOp.SUM)
+            #    loss_acc1.div_(size * 1.0)
+            #    if rank == 0:
+            #        writer.add_scalar('loss ', 
+            #                loss_acc1[0].item()/record_frq,
+            #                epoch*len(train_loader) + i)
+            #        writer.add_scalar('acc1 ',
+            #                loss_acc1[1].item()/record_frq,
+            #                epoch*len(train_loader) + i)
 
-                loss_acc1.zero_()
-        print('Rank %d epoch %d loss %f best_loss %f batch_cnt %d syn_frq %d \
-                batch_syn_cnt %d' % \
-                (rank, epoch, epoch_loss/num_batches, pbest_loss, batch_cnt,
-                    syn_frq, batch_syn_cnt))
+            #    loss_acc1.zero_()
+        #print('Rank %d epoch %d loss %f best_loss %f batch_cnt %d syn_frq %d \
+        #        batch_syn_cnt %d' % \
+        #        (rank, epoch, epoch_loss/num_batches, pbest_loss, batch_cnt,
+        #            syn_frq, batch_syn_cnt))
         test_loss, test_acc1 = test(model, criterion, epoch, test_loader, device)
         if rank==0:
-            print('after reduce rank ', rank,' test_loss ', test_loss, ' test acc1 ', test_acc1)
+            end = time.perf_counter()
+            global best_acc
+            if test_acc1 > best_acc:
+                best_acc = test_acc1
+            print('epoch ', epoch,
+                    'after reduce rank ', rank,' test_loss ', test_loss, 
+                    ' test acc1 ',test_acc1, ' best acc1 ', best_acc,
+                    ' time ', end-start)
             writer.add_scalar('test loss ', 
                     test_loss,
                     epoch)
             writer.add_scalar('test acc1 ', 
                     test_acc1,
                     epoch)
+            writer.add_scalar('best acc1 ', 
+                    best_acc,
+                    epoch)
+            writer.add_scalar('best acc1_time', 
+                    best_acc,
+                    int(end-start))
             
     cleanup()
 

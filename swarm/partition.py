@@ -52,20 +52,20 @@ def paritition_dataset(data, global_batch, seed):
     testset = None
     
     if data == "mnist":
-        dataset = datasets.MNIST('/home/gw/programming/pytorch/data', 
+        dataset = datasets.MNIST('/home/gw/data', 
                 train=True, download=True,
                 transform=transforms.Compose([
                     transforms.ToTensor(),
                     transforms.Normalize((0.1307,), (0.3081,))
                     ]))
-        testset = datasets.MNIST('/home/gw/programming/pytorch/data', 
+        testset = datasets.MNIST('/home/gw/data', 
                 train=False, download=True,
                 transform=transforms.Compose([
                     transforms.ToTensor(),
                     transforms.Normalize((0.1307,), (0.3081,))
                     ]))
     elif data == "cifar10":
-        dataset = datasets.CIFAR10(root='/home/gw/programming/pytorch/data',
+        dataset = datasets.CIFAR10(root='/home/gw/data',
                 train=True, download=True,
                 transform=transforms.Compose([
                     transforms.RandomCrop(32, padding=4),
@@ -73,7 +73,7 @@ def paritition_dataset(data, global_batch, seed):
                     transforms.ToTensor(),
                     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
                     ]))
-        testset = datasets.CIFAR10(root='/home/gw/programming/pytorch/data',
+        testset = datasets.CIFAR10(root='/home/gw/data',
                 train=False, download=True,
                 transform=transforms.Compose([
                     transforms.RandomCrop(32, padding=4),
@@ -110,20 +110,20 @@ def paritition_all_dataset(data, global_batch, seed):
     testset = None
     
     if data == "mnist":
-        dataset = datasets.MNIST('/home/gw/programming/pytorch/data', 
+        dataset = datasets.MNIST('/home/gw/data', 
                 train=True, download=True,
                 transform=transforms.Compose([
                     transforms.ToTensor(),
                     transforms.Normalize((0.1307,), (0.3081,))
                     ]))
-        testset = datasets.MNIST('/home/gw/programming/pytorch/data', 
+        testset = datasets.MNIST('/home/gw/data', 
                 train=False, download=True,
                 transform=transforms.Compose([
                     transforms.ToTensor(),
                     transforms.Normalize((0.1307,), (0.3081,))
                     ]))
     elif data == "cifar10":
-        dataset = datasets.CIFAR10(root='/home/gw/programming/pytorch/data',
+        dataset = datasets.CIFAR10(root='/home/gw/data',
                 train=True, download=True,
                 transform=transforms.Compose([
                     transforms.RandomCrop(32, padding=4),
@@ -131,7 +131,7 @@ def paritition_all_dataset(data, global_batch, seed):
                     transforms.ToTensor(),
                     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
                     ]))
-        testset = datasets.CIFAR10(root='/home/gw/programming/pytorch/data',
+        testset = datasets.CIFAR10(root='/home/gw/data',
                 train=False, download=True,
                 transform=transforms.Compose([
                     transforms.RandomCrop(32, padding=4),
@@ -156,13 +156,15 @@ def paritition_all_dataset(data, global_batch, seed):
         train_loader = torch.utils.data.DataLoader(
                 partition.use(r),
                 batch_size = int(batch),
-                shuffle=True)
+                shuffle=True,
+                num_workers=2)
         dataloaders.append(train_loader)
         
     testloaders = torch.utils.data.DataLoader(
             testset,
             batch_size = int(batch),
-            shuffle=False)
+            shuffle=False,
+            num_workers=2)
 
     return dataloaders, testloaders, int(batch)
 
