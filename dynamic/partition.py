@@ -97,7 +97,7 @@ def paritition_dataset(data, global_batch, seed):
             batch_size = int(batch),
             shuffle=True)
     test_loader = torch.utils.data.DataLoader(
-            partition,
+            testset,
             batch_size = int(batch),
             shuffle=False)
 

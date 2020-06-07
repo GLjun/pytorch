@@ -21,6 +21,10 @@ import torch.utils.data.distributed
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
+from torch.utils.tensorboard import SummaryWriter
+
+from resnet import ResNet50
+from vgg import VGG16
 
 model_names = sorted(name for name in models.__dict__
     if name.islower() and not name.startswith("__")
@@ -34,7 +38,7 @@ parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet18',
                     help='model architecture: ' +
                         ' | '.join(model_names) +
                         ' (default: resnet18)')
-parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
+parser.add_argument('-j', '--workers', default=8, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
 parser.add_argument('--epochs', default=90, type=int, metavar='N',
                     help='number of total epochs to run')
@@ -64,7 +68,7 @@ parser.add_argument('--world-size', default=-1, type=int,
                     help='number of nodes for distributed training')
 parser.add_argument('--rank', default=-1, type=int,
                     help='node rank for distributed training')
-parser.add_argument('--dist-url', default='tcp://224.66.41.62:23456', type=str,
+parser.add_argument('--dist-url', default='tcp://127.0.0.1:23456', type=str,
                     help='url used to set up distributed training')
 parser.add_argument('--dist-backend', default='nccl', type=str,
                     help='distributed backend')
@@ -79,6 +83,10 @@ parser.add_argument('--multiprocessing-distributed', action='store_true',
                          'multi node data parallel training')
 parser.add_argument('--classes', default=1000, type=int,
                     help='num of classes.')
+parser.add_argument('--adjlr', dest='adjlr', action='store_true',
+                    help='adjusted learning rate')
+parser.add_argument('--logdir', default=None, type=str,
+                    help='log dir')
 
 best_acc1 = 0
 
@@ -122,6 +130,16 @@ def main_worker(gpu, ngpus_per_node, args):
     global best_acc1
     args.gpu = gpu
 
+    if gpu == 0:
+        print("main")
+        if args.adjlr:
+            writer = SummaryWriter(log_dir=args.logdir, comment='main_vgg16_adjlr{:.3f}_m{:.2f}'.format(args.lr,
+                args.momentum))
+        else:
+            writer = SummaryWriter(log_dir=args.logdir, comment='main_vgg16_lr{:.3f}_m{:.2f}'.format(args.lr,
+                args.momentum))
+
+
     if args.gpu is not None:
         print("Use GPU: {} for training".format(args.gpu))
 
@@ -142,8 +160,10 @@ def main_worker(gpu, ngpus_per_node, args):
         print("=> using pre-trained model '{}'".format(args.arch))
         model = models.__dict__[args.arch](pretrained=True)
     else:
-        print("=> creating model '{}'".format(args.arch))
-        model = models.__dict__[args.arch](num_classes=num_classes)
+        #print("=> creating model '{}'".format(args.arch))
+        #model = models.__dict__[args.arch](num_classes=num_classes)
+        print("=> VGG16 %d" % (args.classes))
+        model = VGG16(num_classes=args.classes)
 
     if args.distributed:
         # For multiprocessing distributed, DistributedDataParallel constructor
@@ -226,6 +246,7 @@ def main_worker(gpu, ngpus_per_node, args):
     else:
         train_sampler = None
 
+    print("workers %d" % (args.workers))
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
         num_workers=args.workers, pin_memory=True, sampler=train_sampler)
@@ -243,14 +264,18 @@ def main_worker(gpu, ngpus_per_node, args):
     if args.evaluate:
         validate(val_loader, model, criterion, args)
         return
-
+    device = torch.device("cuda:{}".format(args.gpu))
+    acc_red = torch.zeros(1).to(device)
+    acum_time = 0.0
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             train_sampler.set_epoch(epoch)
-        adjust_learning_rate(optimizer, epoch, args)
+        if args.adjlr:
+            adjust_learning_rate(optimizer, epoch, args)
 
         # train for one epoch
-        train(train_loader, model, criterion, optimizer, epoch, args)
+        batch_time = train(train_loader, model, criterion, optimizer, epoch, args)
+        acum_time += batch_time
 
         # evaluate on validation set
         acc1 = validate(val_loader, model, criterion, args)
@@ -259,15 +284,25 @@ def main_worker(gpu, ngpus_per_node, args):
         is_best = acc1 > best_acc1
         best_acc1 = max(acc1, best_acc1)
 
-        if not args.multiprocessing_distributed or (args.multiprocessing_distributed
-                and args.rank % ngpus_per_node == 0):
-            save_checkpoint({
-                'epoch': epoch + 1,
-                'arch': args.arch,
-                'state_dict': model.state_dict(),
-                'best_acc1': best_acc1,
-                'optimizer' : optimizer.state_dict(),
-            }, is_best)
+        #if not args.multiprocessing_distributed or (args.multiprocessing_distributed
+        #        and args.rank % ngpus_per_node == 0):
+        #    save_checkpoint({
+        #        'epoch': epoch + 1,
+        #        'arch': args.arch,
+        #        'state_dict': model.state_dict(),
+        #        'best_acc1': best_acc1,
+        #        'optimizer' : optimizer.state_dict(),
+        #    }, is_best)
+        # average acc1
+        acc_red[0] = acc1
+        dist.reduce(tensor=acc_red, dst=0, op=dist.ReduceOp.SUM)
+        acc_red.div_(args.world_size*1.0)
+        if gpu == 0:
+            print("==> acc1 ", acc_red[0].item())
+            writer.add_scalar('test acc1 ', acc_red[0].item(), epoch)
+            writer.add_scalar('acc1 over time(0.1s)', acc_red[0].item(),
+                    int(acum_time*10))
+
 
 
 def train(train_loader, model, criterion, optimizer, epoch, args):
@@ -314,6 +349,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
 
         if i % args.print_freq == 0:
             progress.display(i)
+    return batch_time.sum
 
 
 def validate(val_loader, model, criterion, args):
