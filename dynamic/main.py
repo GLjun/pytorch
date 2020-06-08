@@ -25,6 +25,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from resnet import ResNet50
 from vgg import VGG16
+from vgg_opt_outplace import VGG16OPO
 
 model_names = sorted(name for name in models.__dict__
     if name.islower() and not name.startswith("__")
@@ -163,7 +164,7 @@ def main_worker(gpu, ngpus_per_node, args):
         #print("=> creating model '{}'".format(args.arch))
         #model = models.__dict__[args.arch](num_classes=num_classes)
         print("=> VGG16 %d" % (args.classes))
-        model = VGG16(num_classes=args.classes)
+        model = VGG16OPO(num_classes=args.classes)
 
     if args.distributed:
         # For multiprocessing distributed, DistributedDataParallel constructor

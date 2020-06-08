@@ -20,6 +20,8 @@ from torch.utils.tensorboard import SummaryWriter
 from vgg_opt_outplace import VGG16OPO
 from resnet import ResNet50
 from sgd_opt_outplace_merge import SGDOPO
+from sgd_opt_w_merge import SGDOPO_MW
+from sgd_opt_w_ele import SGDOPO_W
 
 parser = argparse.ArgumentParser(description='Weight Average SGD')
 parser.add_argument('--seed', default=None, type=int,
@@ -60,6 +62,7 @@ parser.add_argument('--adjlr', dest='adjlr', action='store_true',
                     help='adjusted learning rate')
 parser.add_argument('--logdir', default=None, type=str,
                     help='log dir')
+parser.add_argument('--sgd', default=SGDOPO, type=str, help=" sgd function")
 
 train_dir = "/home/gw/data/imagenet_10/train"
 val_dir = "/home/gw/data/imagenet_10/val"
@@ -101,11 +104,13 @@ def wa_sgd_run(rank, args):
         print("async wa_sgd ", "average weight" if args.ave_weight else "average \
         gradients")
         if args.adjlr:
-            writer = SummaryWriter(log_dir=args.logdir, comment='async_fwd_inplace_wa_sgd_ave_w_vgg16_adjlr{:.3f}_m{:.2f}'.format(args.lr, args.momentum) if args.ave_weight else
-                'async_fwd_inplace_wa_sgd_ave_g_vgg16_adjlr{:.3f}_m{:.2f}'.format(args.lr, args.momentum))
+            writer = SummaryWriter(log_dir=args.logdir,
+                    comment='opt_module_wa_sgd_ave_w_vgg16_adjlr{:.3f}_m{:.2f}'.format(args.lr, args.momentum) if args.ave_weight else
+                'opt_module_wa_sgd_ave_g_vgg16_adjlr{:.3f}_m{:.2f}'.format(args.lr, args.momentum))
         else:
-            writer = SummaryWriter(log_dir=args.logdir, comment='async_fwd_inplace_wa_sgd_ave_w_vgg16_lr{:.3f}_m{:.2f}'.format(args.lr, args.momentum) if args.ave_weight else
-                'async_fwd_inplace_wa_sgd_ave_g_vgg16_lr{:.3f}_m{:.2f}'.format(args.lr, args.momentum))
+            writer = SummaryWriter(log_dir=args.logdir,
+                    comment='opt_module_wa_sgd_ave_w_vgg16_lr{:.3f}_m{:.2f}'.format(args.lr, args.momentum) if args.ave_weight else
+                'opt_module_wa_sgd_ave_g_vgg16_lr{:.3f}_m{:.2f}'.format(args.lr, args.momentum))
 
     #init process group
     if args.gpus is not None:
@@ -131,7 +136,16 @@ def wa_sgd_run(rank, args):
 
     optimizer = optim.SGD(model.parameters(), args.lr,
             momentum=args.momentum, weight_decay=args.weight_decay)
-    optimizer_alpha = SGDOPO(model, args.lr,
+    if args.sgd == "SGDOPO":
+        optimizer_alpha = SGDOPO(model,  args.lr,
+            momentum=args.momentum, weight_decay=args.weight_decay, 
+            alpha=1.0/dist.get_world_size())
+    elif args.sgd == "SGDOPO_W":
+        optimizer_alpha = SGDOPO_W(model,  args.lr,
+            momentum=args.momentum, weight_decay=args.weight_decay, 
+            alpha=1.0/dist.get_world_size())
+    elif args.sgd == "SGDOPO_MW":
+        optimizer_alpha = SGDOPO_MW(model, rank, args.lr,
             momentum=args.momentum, weight_decay=args.weight_decay, 
             alpha=1.0/dist.get_world_size())
     #optimizer = optim.SGD(model.parameters(), args.lr)
