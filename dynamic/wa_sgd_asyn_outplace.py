@@ -17,9 +17,9 @@ import torchvision.datasets as datasets
 import torchvision.models as models
 from torch.utils.tensorboard import SummaryWriter
 
-from vgg_ave_w import VGG16AW
+from vgg_aw_outplace import VGG16AWO
 from resnet import ResNet50
-from sgd_aw import SGDAW
+from sgd_aw_outplace import SGDAWO
 
 parser = argparse.ArgumentParser(description='Weight Average SGD')
 parser.add_argument('--seed', default=None, type=int,
@@ -117,8 +117,10 @@ def wa_sgd_run(rank, args):
     
     device = torch.device("cuda:{}".format(rank))
     print("batchsize ", args.batch_size, " rank ", rank, " device ", device)
+    kv = {}
+    model = VGG16AWO(num_classes=args.classes).to(device)
+    model.gather_kv(kv=kv)
 
-    model = VGG16AW(num_classes=args.classes).to(device)
     #model = ResNet50(num_classes=args.classes).to(device)
     #model = models.resnet50(num_classes=args.classes).to(device)
     #model = models.vgg16_bn(num_classes=args.classes).to(device)
@@ -130,9 +132,10 @@ def wa_sgd_run(rank, args):
 
     optimizer = optim.SGD(model.parameters(), args.lr,
             momentum=args.momentum, weight_decay=args.weight_decay)
-    optimizer_alpha = SGDAW(model.parameters(), args.lr,
+    optimizer_alpha = SGDAWO(kv, model.parameters(), args.lr,
             momentum=args.momentum, weight_decay=args.weight_decay, 
-            alpha=1.0)
+            alpha=1.0/dist.get_world_size())
+    print("kv len ", len(kv))
     #optimizer = optim.SGD(model.parameters(), args.lr)
     #optimizer = optim.SGD(model.parameters(), args.lr, momentum=args.momentum)
 
@@ -248,7 +251,7 @@ def train(device, train_loader, model, criterion, optimizer, optimizer_alpha, ep
 
         optimizer_alpha.zero_grad()
         loss.backward()
-        if optimizer_alpha.cnt < 102:
+        if optimizer_alpha.cnt < 0:
             #if dist.get_rank() == 0:
                 #print("%d average gradients" % (optimizer_alpha.cnt))
             average_gradients(model, float(args.world_size))
