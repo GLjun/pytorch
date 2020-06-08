@@ -19,7 +19,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from vgg_opt_outplace import VGG16OPO
 from resnet import ResNet50
-from sgd_opt_outplace import SGDOPO
+from sgd_opt_outplace_merge import SGDOPO
 
 parser = argparse.ArgumentParser(description='Weight Average SGD')
 parser.add_argument('--seed', default=None, type=int,

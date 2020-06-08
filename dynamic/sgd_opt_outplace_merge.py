@@ -156,12 +156,15 @@ class SGDOPO(Optimizer):
 
 
         for m in module_list:
+            need_hook = False
             for key, param in m.named_parameters():
                 #print("prm===>", key)
                 if param.data is not None and param.requires_grad:
                     #add reduce buffer
                     m.register_buffer(self.prefix+key, param.data.clone().detach().requires_grad_(False))
-                    m.register_backward_hook(wait_update_reduce_hook)
+                    need_hook = True
+            if need_hook:
+                m.register_backward_hook(wait_update_reduce_hook)
                 
         #print(module_list)
         print("modules len ", len(module_list))

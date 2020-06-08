@@ -79,20 +79,30 @@ def print_children(module, prefix=" "):
 
 if __name__ == '__main__':
     model = VGG16OPO()
-    optimizer = SGDOPO(model, momentum=0.9, lr=0.01, weight_decay=0.0001)
-    input = torch.randn(1, 3, 224, 224)
-    out = model(input)
-    print(out.shape)
-    #out.backward()
-    lossfunc = torch.nn.NLLLoss()
-    #label = torch.zeros_like(out, dtype=torch.long)
-    
-    #label[0][0] = 1
-    #print(label)
-    #print(label.shape)
-    label = torch.zeros(1, dtype=torch.long)
-    loss = lossfunc(out, label)
-    loss.backward()
+    cnt = 0
+    cnt1 = 0
+    for param in model.parameters():
+        if param.data is not None and param.requires_grad:
+            print(param.data.size())
+            cnt += 1
+    for param in model.parameters():
+        if param.grad is not None:
+            cnt1 += 1
+    print("cnt ", cnt, " cnt1 ", cnt1)
+    #optimizer = SGDOPO(model, momentum=0.9, lr=0.01, weight_decay=0.0001)
+    #input = torch.randn(1, 3, 224, 224)
+    #out = model(input)
+    #print(out.shape)
+    ##out.backward()
+    #lossfunc = torch.nn.NLLLoss()
+    ##label = torch.zeros_like(out, dtype=torch.long)
+    #
+    ##label[0][0] = 1
+    ##print(label)
+    ##print(label.shape)
+    #label = torch.zeros(1, dtype=torch.long)
+    #loss = lossfunc(out, label)
+    #loss.backward()
 
     
 
