@@ -62,7 +62,9 @@ parser.add_argument('--adjlr', dest='adjlr', action='store_true',
                     help='adjusted learning rate')
 parser.add_argument('--logdir', default=None, type=str,
                     help='log dir')
-parser.add_argument('--sgd', default=SGDOPO, type=str, help=" sgd function")
+parser.add_argument('--sgd', default="SGDOPO", type=str, help=" sgd function")
+
+parser.add_argument('--dataset', default="imagenet", type=str, help=" dataset, [imagenet or cifar10")
 
 train_dir = "/home/gw/data/imagenet_10/train"
 val_dir = "/home/gw/data/imagenet_10/val"
