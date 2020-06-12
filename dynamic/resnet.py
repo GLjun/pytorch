@@ -118,8 +118,25 @@ def ResNet152(num_classes=1000):
 
 if __name__=='__main__':
     model = ResNet50()
-    print(model)
+    module_list = []
+    def gather_all_module(submodule):
+            has_child = False
+            for m in submodule.children():
+                has_child = True
+                gather_all_module(m)
+            if not has_child:
+                module_list.append(submodule)
+    gather_all_module(model)
+    for m in module_list:
+        print(m)
+    print(len(module_list))
+    for key, m in model.named_children():
+        print("==>", key)
+        for k, v in m.named_children():
+            print(k)
+    
+    #print(model)
 
-    input = torch.randn(1, 3, 224, 224)
-    out = model(input)
-    print(out.shape)
+    #input = torch.randn(1, 3, 224, 224)
+    #out = model(input)
+    #print(out.shape)

@@ -88,6 +88,7 @@ parser.add_argument('--adjlr', dest='adjlr', action='store_true',
                     help='adjusted learning rate')
 parser.add_argument('--logdir', default=None, type=str,
                     help='log dir')
+parser.add_argument('--dataset', default="imagenet", type=str, help=" dataset, [imagenet or cifar10")
 
 best_acc1 = 0
 
@@ -134,10 +135,10 @@ def main_worker(gpu, ngpus_per_node, args):
     if gpu == 0:
         print("main")
         if args.adjlr:
-            writer = SummaryWriter(log_dir=args.logdir, comment='main_vgg16_adjlr{:.3f}_m{:.2f}'.format(args.lr,
+            writer = SummaryWriter(log_dir=args.logdir, comment='main_{}_{}_adjlr{:.3f}_m{:.2f}'.format(args.dataset, args.arch, args.lr,
                 args.momentum))
         else:
-            writer = SummaryWriter(log_dir=args.logdir, comment='main_vgg16_lr{:.3f}_m{:.2f}'.format(args.lr,
+            writer = SummaryWriter(log_dir=args.logdir, comment='main_{}_{}_lr{:.3f}_m{:.2f}'.format(args.dataset, args.arch, args.lr,
                 args.momentum))
 
 
@@ -163,9 +164,9 @@ def main_worker(gpu, ngpus_per_node, args):
     else:
         #print("=> creating model '{}'".format(args.arch))
         #model = models.__dict__[args.arch](num_classes=num_classes)
-        print("=> VGG16 %d" % (args.classes))
-        model = VGG16OPO(num_classes=args.classes)
-        #model = ResNet50(num_classes=args.classes)
+        print("=> res50 %d" % (args.classes))
+        #model = VGG16OPO(num_classes=args.classes)
+        model = ResNet50(num_classes=args.classes)
 
     if args.distributed:
         # For multiprocessing distributed, DistributedDataParallel constructor
@@ -178,6 +179,7 @@ def main_worker(gpu, ngpus_per_node, args):
             # DistributedDataParallel, we need to divide the batch size
             # ourselves based on the total number of GPUs we have
             args.batch_size = int(args.batch_size / ngpus_per_node)
+            print("batchsize ", args.batch_size)
             args.workers = int((args.workers + ngpus_per_node - 1) / ngpus_per_node)
             model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
         else:
@@ -227,41 +229,66 @@ def main_worker(gpu, ngpus_per_node, args):
 
     cudnn.benchmark = True
 
-
-    # Data loading code
-    traindir = os.path.join(args.data, 'train')
-    valdir = os.path.join(args.data, 'val')
-    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
-
-    train_dataset = datasets.ImageFolder(
-        traindir,
-        transforms.Compose([
-            transforms.RandomResizedCrop(224),
+    print("==> workers %d" % (args.workers))
+    if args.dataset == "cifar10":
+        print("==> dataset cifar10")
+        transform_train = transforms.Compose([
+            transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
-            normalize,
-        ]))
-
-    if args.distributed:
-        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
-    else:
-        train_sampler = None
-
-    print("workers %d" % (args.workers))
-    train_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
-        num_workers=args.workers, pin_memory=True, sampler=train_sampler)
-
-    val_loader = torch.utils.data.DataLoader(
-        datasets.ImageFolder(valdir, transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
+        
+        transform_test = transforms.Compose([
             transforms.ToTensor(),
-            normalize,
-        ])),
-        batch_size=args.batch_size, shuffle=False,
-        num_workers=args.workers, pin_memory=True)
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
+        train_dataset = datasets.CIFAR10(root=args.data,
+                train=False, download=True, transform=transform_train)
+        if args.distributed:
+            train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
+        else :
+            train_sampler = None
+        train_loader = torch.utils.data.DataLoader(train_dataset,
+                batch_size=args.batch_size, shuffle=(train_sampler is None), num_workers=args.workers, pin_memory=True, sampler=train_sampler)
+        test_set = datasets.CIFAR10(root=args.data, train=False, download=True, transform=transform_test)
+        val_loader = torch.utils.data.DataLoader(test_set, batch_size=args.batch_size, shuffle=False, num_workers=args.workers, pin_memory=True)
+    elif args.dataset == "imagenet":
+        # Data loading code
+        print("==> dataset dataset")
+        traindir = os.path.join(args.data, 'train')
+        valdir = os.path.join(args.data, 'val')
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                        std=[0.229, 0.224, 0.225])
+
+        train_dataset = datasets.ImageFolder(
+            traindir,
+            transforms.Compose([
+                transforms.RandomResizedCrop(224),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                normalize,
+            ]))
+
+        if args.distributed:
+            train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
+        else:
+            train_sampler = None
+
+        
+        train_loader = torch.utils.data.DataLoader(
+            train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
+            num_workers=args.workers, pin_memory=True, sampler=train_sampler)
+
+        val_loader = torch.utils.data.DataLoader(
+            datasets.ImageFolder(valdir, transforms.Compose([
+                transforms.Resize(256),
+                transforms.CenterCrop(224),
+                transforms.ToTensor(),
+                normalize,
+            ])),
+            batch_size=args.batch_size, shuffle=False,
+            num_workers=args.workers, pin_memory=True)
 
     if args.evaluate:
         validate(val_loader, model, criterion, args)
@@ -269,6 +296,7 @@ def main_worker(gpu, ngpus_per_node, args):
     device = torch.device("cuda:{}".format(args.gpu))
     acc_red = torch.zeros(1).to(device)
     acum_time = 0.0
+    dist.barrier()
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             train_sampler.set_epoch(epoch)
@@ -347,10 +375,10 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
 
         # measure elapsed time
         batch_time.update(time.time() - end)
-        end = time.time()
 
-        if i % args.print_freq == 0:
+        if False and i % args.print_freq == 0:
             progress.display(i)
+        end = time.time()
     return batch_time.sum
 
 

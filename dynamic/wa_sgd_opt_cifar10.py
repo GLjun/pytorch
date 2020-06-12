@@ -22,7 +22,6 @@ from resnet import ResNet50
 from sgd_opt_outplace_merge import SGDOPO
 from sgd_opt_w_merge import SGDOPO_MW
 from sgd_opt_w_ele import SGDOPO_W
-from sgd_opt_w_block import SGDOPO_BW
 
 parser = argparse.ArgumentParser(description='Weight Average SGD')
 parser.add_argument('--seed', default=None, type=int,
@@ -66,9 +65,12 @@ parser.add_argument('--logdir', default=None, type=str,
 parser.add_argument('--sgd', default="SGDOPO", type=str, help=" sgd function")
 
 parser.add_argument('--dataset', default="imagenet", type=str, help=" dataset, [imagenet or cifar10")
+parser.add_argument('--arch', default="resnet50", type=str, help=" model, [resnet50 or vgg16")
 
 train_dir = "/home/gw/data/imagenet_10/train"
 val_dir = "/home/gw/data/imagenet_10/val"
+
+cifar_dir = "home/gw"
 
 best_acc1 = 0.0
 
@@ -91,13 +93,13 @@ def main():
         print("using gpus : ", args.gpus)
 
     gpu_count = torch.cuda.device_count()
-    args.world_size  = gpu_count * args.world_size # one process per gpu
-    print("==>world size %d , total %d gpus" % (args.world_size, gpu_count))
+    args.world_size  = gpu_count * 1 # one process per gpu
+    print("==>world size %d , total %d gpus" % (args.world_size, args.world_size))
 
     num_classes = args.classes
     print("==>classes '{}'".format(num_classes))
 
-    mp.spawn(wa_sgd_run, nprocs=gpu_count, args=(args,), join=True)
+    mp.spawn(wa_sgd_run, nprocs=args.world_size, args=(args,), join=True)
 
 
 def wa_sgd_run(rank, args):
@@ -119,7 +121,7 @@ def wa_sgd_run(rank, args):
     if args.gpus is not None:
         os.environ['CUDA_VISIBLE_DEVICES'] = ",".join(args.gpus)
     dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
-                        world_size=args.world_size, rank=4+rank)
+                        world_size=args.world_size, rank=rank)
 
     args.batch_size = int(args.batch_size/args.world_size)
     
@@ -127,8 +129,11 @@ def wa_sgd_run(rank, args):
     print("batchsize ", args.batch_size, " rank ", rank, " device ", device)
 
     #model = VGG16OPO(num_classes=args.classes).to(device)
-
-    model = ResNet50(num_classes=args.classes).to(device)
+    if args.arch == "resnet50" :
+        model = models.resnet50(num_classes=args.classes).to(device)
+    elif args.arch == "vgg16":
+        model = models.vgg16_bn(num_classes=args.classes).to(device)
+    print("using model ", args.arch)
     #model = models.resnet50(num_classes=args.classes).to(device)
     #model = models.vgg16_bn(num_classes=args.classes).to(device)
     #model = torch.nn.parallel.DistributedDataParallel(model)
@@ -151,45 +156,61 @@ def wa_sgd_run(rank, args):
         optimizer_alpha = SGDOPO_MW(model, rank, args.lr,
             momentum=args.momentum, weight_decay=args.weight_decay, 
             alpha=1.0/dist.get_world_size())
-    elif args.sgd == "SGDOPO_BW":
-        optimizer_alpha = SGDOPO_BW(model, rank, args.lr,
-            momentum=args.momentum, weight_decay=args.weight_decay, 
-            alpha=1.0/dist.get_world_size())
     #optimizer = optim.SGD(model.parameters(), args.lr)
     #optimizer = optim.SGD(model.parameters(), args.lr, momentum=args.momentum)
 
     #open cudnn benchmark
-    #cudnn.benchmark = True
+    cudnn.benchmark = True
 
-    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                        std = [0.229, 0.224, 0.225])
-    
-    train_dataset = datasets.ImageFolder(
-        train_dir,
-        transforms.Compose([
-            transforms.RandomResizedCrop(224),
+    if args.dataset == "cifar10":
+        print("==> dataset cifar10")
+        transform_train = transforms.Compose([
+            transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
-            normalize,
-        ]))
-    train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
-    train_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
-        num_workers=args.workers, pin_memory=True, sampler=train_sampler)
-
-    val_loader = torch.utils.data.DataLoader(
-        datasets.ImageFolder(val_dir, transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
+        
+        transform_test = transforms.Compose([
             transforms.ToTensor(),
-            normalize,
-        ])),
-        batch_size=args.batch_size, shuffle=False,
-        num_workers=args.workers, pin_memory=True)
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
+        train_dataset = datasets.CIFAR10(root='/home/gw/data',
+                train=False, download=True, transform=transform_train)
+        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
+        train_loader = torch.utils.data.DataLoader(train_dataset,
+                batch_size=args.batch_size, shuffle=(train_sampler is None), num_workers=args.workers, pin_memory=True, sampler=train_sampler)
+        test_set = datasets.CIFAR10(root='/home/gw/data', train=False, download=True, transform=transform_test)
+        val_loader = torch.utils.data.DataLoader(test_set, batch_size=args.batch_size, shuffle=False, num_workers=args.workers, pin_memory=True)
+    elif args.dataset == "imagenet":
+        print("==> dataset imagenet")
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                            std = [0.229, 0.224, 0.225])
+        
+        train_dataset = datasets.ImageFolder(
+            train_dir,
+            transforms.Compose([
+                transforms.RandomResizedCrop(224),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                normalize,
+            ]))
+        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
+        train_loader = torch.utils.data.DataLoader(
+            train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None), num_workers=args.workers, pin_memory=True, sampler=train_sampler)
+
+        val_loader = torch.utils.data.DataLoader(
+            datasets.ImageFolder(val_dir, transforms.Compose([
+                transforms.Resize(256),
+                transforms.CenterCrop(224),
+                transforms.ToTensor(),
+                normalize,
+            ])),
+            batch_size=args.batch_size, shuffle=False,
+            num_workers=args.workers, pin_memory=True)
 
     acc_red = torch.zeros(1).to(device)
     acum_time = 0.0
-    dist.barrier()
     for epoch in range(0, args.epochs):
         train_sampler.set_epoch(epoch)
         if args.adjlr:
@@ -292,10 +313,10 @@ def train(device, train_loader, model, criterion, optimizer, optimizer_alpha, ep
 
         # measure elapsed time
         batch_time.update(time.time() - end)
+        end = time.time()
 
         if not args.no_details and i % args.print_freq == 0:
             progress.display(i)
-        end = time.time()
         #dist.barrier()
     return batch_time.sum
 
