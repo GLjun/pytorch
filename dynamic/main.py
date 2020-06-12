@@ -163,8 +163,9 @@ def main_worker(gpu, ngpus_per_node, args):
     else:
         #print("=> creating model '{}'".format(args.arch))
         #model = models.__dict__[args.arch](num_classes=num_classes)
-        print("=> VGG16 %d" % (args.classes))
-        model = VGG16OPO(num_classes=args.classes)
+        print("=> res50 %d" % (args.classes))
+        #model = VGG16OPO(num_classes=args.classes)
+        model = ResNet50(num_classes=args.classes)
 
     if args.distributed:
         # For multiprocessing distributed, DistributedDataParallel constructor
@@ -268,6 +269,7 @@ def main_worker(gpu, ngpus_per_node, args):
     device = torch.device("cuda:{}".format(args.gpu))
     acc_red = torch.zeros(1).to(device)
     acum_time = 0.0
+    dist.barrier()
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             train_sampler.set_epoch(epoch)
@@ -346,10 +348,10 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
 
         # measure elapsed time
         batch_time.update(time.time() - end)
-        end = time.time()
 
-        if i % args.print_freq == 0:
+        if False and i % args.print_freq == 0:
             progress.display(i)
+        end = time.time()
     return batch_time.sum
 
 
@@ -385,7 +387,6 @@ def validate(val_loader, model, criterion, args):
 
             # measure elapsed time
             batch_time.update(time.time() - end)
-            end = time.time()
 
             if i % args.print_freq == 0:
                 progress.display(i)

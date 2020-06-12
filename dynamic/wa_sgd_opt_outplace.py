@@ -22,6 +22,7 @@ from resnet import ResNet50
 from sgd_opt_outplace_merge import SGDOPO
 from sgd_opt_w_merge import SGDOPO_MW
 from sgd_opt_w_ele import SGDOPO_W
+from sgd_opt_w_block import SGDOPO_BW
 
 parser = argparse.ArgumentParser(description='Weight Average SGD')
 parser.add_argument('--seed', default=None, type=int,
@@ -38,7 +39,7 @@ parser.add_argument('--dist-url', default='tcp://127.0.0.1:12345', type=str,
                     help='url used to set up distributed training')
 parser.add_argument('--dist-backend', default='nccl', type=str,
                     help='distributed backend')
-parser.add_argument('--world-size', default=-1, type=int,
+parser.add_argument('--world-size', default=1, type=int,
                     help='number of nodes for distributed training')
 parser.add_argument('-b', '--batch-size', default=256, type=int,
                     metavar='N',
@@ -88,13 +89,13 @@ def main():
         print("using gpus : ", args.gpus)
 
     gpu_count = torch.cuda.device_count()
-    args.world_size  = gpu_count * 1 # one process per gpu
-    print("==>world size %d , total %d gpus" % (args.world_size, args.world_size))
+    args.world_size  = gpu_count * args.world_size # one process per gpu
+    print("==>world size %d , total %d gpus" % (args.world_size, gpu_count))
 
     num_classes = args.classes
     print("==>classes '{}'".format(num_classes))
 
-    mp.spawn(wa_sgd_run, nprocs=args.world_size, args=(args,), join=True)
+    mp.spawn(wa_sgd_run, nprocs=gpu_count, args=(args,), join=True)
 
 
 def wa_sgd_run(rank, args):
@@ -123,9 +124,10 @@ def wa_sgd_run(rank, args):
     device = torch.device("cuda:{}".format(rank))
     print("batchsize ", args.batch_size, " rank ", rank, " device ", device)
 
-    model = VGG16OPO(num_classes=args.classes).to(device)
+    #model = VGG16OPO(num_classes=args.classes).to(device)
+    #model = models.resnet50(num_classes=args.classes).to(device)
 
-    #model = ResNet50(num_classes=args.classes).to(device)
+    model = ResNet50(num_classes=args.classes).to(device)
     #model = models.resnet50(num_classes=args.classes).to(device)
     #model = models.vgg16_bn(num_classes=args.classes).to(device)
     #model = torch.nn.parallel.DistributedDataParallel(model)
@@ -146,6 +148,10 @@ def wa_sgd_run(rank, args):
             alpha=1.0/dist.get_world_size())
     elif args.sgd == "SGDOPO_MW":
         optimizer_alpha = SGDOPO_MW(model, rank, args.lr,
+            momentum=args.momentum, weight_decay=args.weight_decay, 
+            alpha=1.0/dist.get_world_size())
+    elif args.sgd == "SGDOPO_BW":
+        optimizer_alpha = SGDOPO_BW(model, rank, args.lr,
             momentum=args.momentum, weight_decay=args.weight_decay, 
             alpha=1.0/dist.get_world_size())
     #optimizer = optim.SGD(model.parameters(), args.lr)
@@ -182,6 +188,7 @@ def wa_sgd_run(rank, args):
 
     acc_red = torch.zeros(1).to(device)
     acum_time = 0.0
+    dist.barrier()
     for epoch in range(0, args.epochs):
         train_sampler.set_epoch(epoch)
         if args.adjlr:
@@ -284,10 +291,10 @@ def train(device, train_loader, model, criterion, optimizer, optimizer_alpha, ep
 
         # measure elapsed time
         batch_time.update(time.time() - end)
-        end = time.time()
 
         if not args.no_details and i % args.print_freq == 0:
             progress.display(i)
+        end = time.time()
         #dist.barrier()
     return batch_time.sum
 
